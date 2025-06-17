@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -24,5 +27,12 @@ func main() {
 	r.GET("/ping", ocrServer.Ping)
 	r.POST("/process_image", ocrServer.ProcessImage)
 
-	r.Run(":8080")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+		log.Printf("Defaulting to port %s", port)
+	}
+
+	log.Printf("Listening on port %s", port)
+	r.Run(fmt.Sprintf(":%s", port))
 }
