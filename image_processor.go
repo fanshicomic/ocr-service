@@ -58,7 +58,7 @@ func (p *ScreenshotImageProcessor) ProcessImage(imagePath string) (map[string]st
 		return nil, fmt.Errorf("error setting language: %v", err)
 	}
 
-	client.SetWhitelist("誓约回能增伤加速暴生命攻击防御虚弱1234567890.%")
+	client.SetWhitelist("誓约回能增伤加速暴生命攻击防御虚弱1234567890.% |")
 	// 避免离谱的哲约增伤
 	client.SetBlacklist("哲")
 	client.SetPageSegMode(gosseract.PSM_SPARSE_TEXT_OSD)
