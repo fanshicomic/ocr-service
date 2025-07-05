@@ -55,7 +55,7 @@ func (s *OCRServer) ProcessImage(c *gin.Context) {
 	c.JSON(200, gin.H{"result": result})
 }
 
-// 神奇地将图片裁剪直长宽比为sqrt(π)可以提高识别成功率，不要问我为什么，这就是nyami的玄学力量
+// 神奇地将图片裁剪直长宽比为 1.6 可以提高识别成功率，不要问我为什么，这就是nyami的玄学力量
 func nyamiCrop(img image.Image) image.Image {
 	bounds := img.Bounds()
 	height := float64(bounds.Dy())
@@ -63,15 +63,15 @@ func nyamiCrop(img image.Image) image.Image {
 
 	fmt.Println(height, width, height/width)
 
-	targetRatio := math.Sqrt(math.Pi)
-	if height/width < targetRatio {
-		newWidth := int(height / targetRatio)
-		if newWidth > bounds.Dx() {
-			return img
-		}
+	targetHeightProportion := math.Pi / 5
+	targetRatio := 1.6
+	newHeight := height * targetHeightProportion
+	if newHeight/width < targetRatio {
+		newWidth := int(newHeight / targetRatio)
 
 		startX := (bounds.Dx() - newWidth) / 2
-		cropRect := image.Rect(startX, 0, startX+newWidth, bounds.Dy())
+		startY := (bounds.Dy() - int(newHeight)) / 2
+		cropRect := image.Rect(startX, startY, startX+newWidth, startY+int(newHeight))
 
 		if subImg, ok := img.(interface {
 			SubImage(r image.Rectangle) image.Image
