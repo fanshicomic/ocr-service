@@ -26,6 +26,7 @@ func main() {
 
 	r.GET("/ping", ocrServer.Ping)
 	r.POST("/process_image", ocrServer.ProcessImage)
+	r.POST("/ocr", ocrServer.OCR)
 
 	port := os.Getenv("PORT")
 	if port == "" {
