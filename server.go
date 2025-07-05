@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"image"
+	"image/jpeg"
+	"math"
 	"math/rand"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -51,8 +52,52 @@ func (s *OCRServer) ProcessImage(c *gin.Context) {
 	c.JSON(200, gin.H{"result": result})
 }
 
+// 神奇地将图片裁剪直长宽比为sqrt(π)可以提高识别成功率，不要问我为什么，这就是nyami的玄学力量
+func nyamiCrop(img image.Image) image.Image {
+	bounds := img.Bounds()
+	height := float64(bounds.Dy())
+	width := float64(bounds.Dx())
+
+	fmt.Println(height, width, height/width)
+
+	targetRatio := math.Sqrt(math.Pi)
+	if height/width < targetRatio {
+		newWidth := int(height / targetRatio)
+		if newWidth > bounds.Dx() {
+			return img
+		}
+
+		startX := (bounds.Dx() - newWidth) / 2
+		cropRect := image.Rect(startX, 0, startX+newWidth, bounds.Dy())
+
+		if subImg, ok := img.(interface {
+			SubImage(r image.Rectangle) image.Image
+		}); ok {
+			return subImg.SubImage(cropRect)
+		}
+
+		cropped := image.NewRGBA(cropRect)
+		for y := cropRect.Min.Y; y < cropRect.Max.Y; y++ {
+			for x := cropRect.Min.X; x < cropRect.Max.X; x++ {
+				cropped.Set(x, y, img.At(x, y))
+			}
+		}
+		return cropped
+	}
+
+	return img
+}
+
+func saveImageToTmp(img image.Image) string {
+	tempFile, _ := os.CreateTemp("", generateRandomString(15))
+	defer tempFile.Close()
+
+	jpeg.Encode(tempFile, img, &jpeg.Options{Quality: 100})
+	return tempFile.Name()
+}
+
 func (s *OCRServer) OCR(c *gin.Context) {
-	file, err := c.FormFile("photo")
+	fileHeader, err := c.FormFile("photo")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "No file is received",
@@ -60,16 +105,20 @@ func (s *OCRServer) OCR(c *gin.Context) {
 		return
 	}
 
-	extension := filepath.Ext(file.Filename)
-	tempFilePath := filepath.Join(os.TempDir(), fmt.Sprintf("%s%s", generateRandomString(15), extension))
-
-	if err := c.SaveUploadedFile(file, tempFilePath); err != nil {
-		log.Printf("Failed to save file: %s", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Unable to save the file",
-		})
+	file, err := fileHeader.Open()
+	if err != nil {
 		return
 	}
+	defer file.Close()
+
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return
+	}
+
+	croppedImg := nyamiCrop(img)
+	tempFilePath := saveImageToTmp(croppedImg)
+	fmt.Println(tempFilePath)
 
 	result, err := s.ImageProcessor.ProcessImage(tempFilePath)
 	if err != nil {
