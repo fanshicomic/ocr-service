@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	"image/png"
 	"math"
 	"math/rand"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -88,11 +91,19 @@ func nyamiCrop(img image.Image) image.Image {
 	return img
 }
 
-func saveImageToTmp(img image.Image) string {
+func saveImageToTmp(img image.Image, format string) string {
 	tempFile, _ := os.CreateTemp("", generateRandomString(15))
 	defer tempFile.Close()
 
-	jpeg.Encode(tempFile, img, &jpeg.Options{Quality: 100})
+	switch strings.ToLower(format) {
+	case "jpeg", "jpg":
+		jpeg.Encode(tempFile, img, &jpeg.Options{Quality: 100})
+	case "png":
+		png.Encode(tempFile, img)
+	default:
+		return ""
+	}
+
 	return tempFile.Name()
 }
 
@@ -116,9 +127,9 @@ func (s *OCRServer) OCR(c *gin.Context) {
 		return
 	}
 
+	extension := filepath.Ext(fileHeader.Filename)
 	croppedImg := nyamiCrop(img)
-	tempFilePath := saveImageToTmp(croppedImg)
-	fmt.Println(tempFilePath)
+	tempFilePath := saveImageToTmp(croppedImg, extension[1:])
 
 	result, err := s.ImageProcessor.ProcessImage(tempFilePath)
 	if err != nil {
