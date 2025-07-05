@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/otiai10/gosseract/v2"
 )
@@ -16,6 +17,29 @@ type ScreenshotImageProcessor struct {
 
 func NewScreenshotImageProcessor() ImageProcessor {
 	return &ScreenshotImageProcessor{}
+}
+
+func splitMixedWords(words []string) []string {
+	result := make([]string, 0, len(words))
+
+	for _, word := range words {
+		splitIndex := -1
+		for i, r := range word {
+			if unicode.Is(unicode.Han, r) {
+				splitIndex = i
+				break
+			}
+		}
+
+		if splitIndex > 0 {
+			numberPart := word[:splitIndex]
+			chinesePart := word[splitIndex:]
+			result = append(result, numberPart, chinesePart)
+		} else {
+			result = append(result, word)
+		}
+	}
+	return result
 }
 
 func (p *ScreenshotImageProcessor) ProcessImage(imagePath string) (map[string]string, error) {
@@ -33,6 +57,11 @@ func (p *ScreenshotImageProcessor) ProcessImage(imagePath string) (map[string]st
 	if err != nil {
 		return nil, fmt.Errorf("error setting language: %v", err)
 	}
+
+	client.SetWhitelist("誓约回能增伤加速暴生命攻击防御虚弱1234567890.%")
+	// 避免离谱的哲约增伤
+	client.SetBlacklist("哲")
+	client.SetPageSegMode(gosseract.PSM_SPARSE_TEXT_OSD)
 
 	// 执行 OCR 并获取纯文本字符串
 	ocrResultText, err := client.Text()
@@ -56,7 +85,7 @@ func (p *ScreenshotImageProcessor) ProcessImage(imagePath string) (map[string]st
 	}
 
 	// 使用 strings.Fields 按空白符分割字符串
-	words := strings.Fields(ocrResultText)
+	words := splitMixedWords(strings.Fields(ocrResultText))
 
 	// 创建一个 map 来存储最终结果
 	extractedData := make(map[string]string)
@@ -68,7 +97,9 @@ func (p *ScreenshotImageProcessor) ProcessImage(imagePath string) (map[string]st
 		if strings.Contains(cleanWord, "约增伤") {
 			cleanWord = "誓约增伤"
 		}
-
+		if strings.Contains(cleanWord, "约回能") {
+			cleanWord = "誓约回能"
+		}
 		// 检查当前单词是否是我们要找的目标字段
 		if _, isTarget := targetKeys[cleanWord]; isTarget {
 			// 如果是，那么下一个单词就是它的值
@@ -96,12 +127,12 @@ func (p *ScreenshotImageProcessor) ProcessImage(imagePath string) (map[string]st
 }
 
 func sanitizeText(text string) string {
-	sanizedText := strings.Map(func(r rune) rune {
+	sanitizedText := strings.Map(func(r rune) rune {
 		if (r >= '0' && r <= '9') || r == '.' {
 			return r
 		}
 		return -1
 	}, text)
 
-	return sanizedText
+	return sanitizedText
 }
