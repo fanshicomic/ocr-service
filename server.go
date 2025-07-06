@@ -111,19 +111,22 @@ func (s *OCRServer) OCR(c *gin.Context) {
 	fileHeader, err := c.FormFile("photo")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "No file is received",
+			"error":  "No file is received",
+			"detail": err.Error(),
 		})
 		return
 	}
 
 	file, err := fileHeader.Open()
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open image", "detail": err.Error()})
 		return
 	}
 	defer file.Close()
 
 	img, _, err := image.Decode(file)
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode image", "detail": err.Error()})
 		return
 	}
 
@@ -137,7 +140,7 @@ func (s *OCRServer) OCR(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{"result": result})
+	c.JSON(http.StatusOK, gin.H{"result": result})
 }
 
 func generateRandomString(length int) string {
