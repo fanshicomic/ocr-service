@@ -108,6 +108,7 @@ func saveImageToTmp(img image.Image, format string) string {
 }
 
 func (s *OCRServer) OCR(c *gin.Context) {
+	c.Header("Content-Type", "application/json; charset=utf-8")
 	fileHeader, err := c.FormFile("photo")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
