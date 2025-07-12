@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"image"
+	"image/color"
+	"image/draw"
 	"image/jpeg"
 	"image/png"
-	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -59,36 +60,48 @@ func (s *OCRServer) ProcessImage(c *gin.Context) {
 func nyamiCrop(img image.Image) image.Image {
 	bounds := img.Bounds()
 	height := float64(bounds.Dy())
-	width := float64(bounds.Dx())
 
-	fmt.Println(height, width, height/width)
+	newHeight := int(height / 2)
+	newWidth := int(height / 2 * 0.8)
 
-	targetHeightProportion := math.Pi / 5
-	targetRatio := 1.6
-	newHeight := height * targetHeightProportion
-	if newHeight/width < targetRatio {
-		newWidth := int(newHeight / targetRatio)
+	startX := (bounds.Dx() - newWidth) / 2
+	startY := (bounds.Dy() - int(newHeight)) / 2
+	cropRect := image.Rect(startX, startY, startX+newWidth, startY+newHeight)
 
-		startX := (bounds.Dx() - newWidth) / 2
-		startY := (bounds.Dy() - int(newHeight)) / 2
-		cropRect := image.Rect(startX, startY, startX+newWidth, startY+int(newHeight))
-
-		if subImg, ok := img.(interface {
-			SubImage(r image.Rectangle) image.Image
-		}); ok {
-			return subImg.SubImage(cropRect)
-		}
-
-		cropped := image.NewRGBA(cropRect)
-		for y := cropRect.Min.Y; y < cropRect.Max.Y; y++ {
-			for x := cropRect.Min.X; x < cropRect.Max.X; x++ {
-				cropped.Set(x, y, img.At(x, y))
-			}
-		}
-		return cropped
+	if subImg, ok := img.(interface {
+		SubImage(r image.Rectangle) image.Image
+	}); ok {
+		return subImg.SubImage(cropRect)
 	}
 
-	return img
+	cropped := image.NewRGBA(cropRect)
+	for y := cropRect.Min.Y; y < cropRect.Max.Y; y++ {
+		for x := cropRect.Min.X; x < cropRect.Max.X; x++ {
+			cropped.Set(x, y, img.At(x, y))
+		}
+	}
+	return cropped
+}
+
+// 转黑白增强对比度
+func nyamiBoost(img image.Image) *image.Gray {
+	bounds := img.Bounds()
+	grayImg := image.NewGray(bounds)
+	draw.Draw(grayImg, grayImg.Bounds(), img, bounds.Min, draw.Src)
+
+	// 190的对比度刚刚好
+	threshold := uint8(190)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			c := grayImg.GrayAt(x, y)
+			if c.Y > threshold {
+				grayImg.SetGray(x, y, color.Gray{Y: 255})
+			} else {
+				grayImg.SetGray(x, y, color.Gray{Y: 0})
+			}
+		}
+	}
+	return grayImg
 }
 
 func saveImageToTmp(img image.Image, format string) string {
@@ -133,7 +146,9 @@ func (s *OCRServer) OCR(c *gin.Context) {
 
 	extension := filepath.Ext(fileHeader.Filename)
 	croppedImg := nyamiCrop(img)
-	tempFilePath := saveImageToTmp(croppedImg, extension[1:])
+	bwImg := nyamiBoost(croppedImg)
+	tempFilePath := saveImageToTmp(bwImg, extension[1:])
+	fmt.Println(tempFilePath)
 
 	result, err := s.ImageProcessor.ProcessImage(tempFilePath)
 	if err != nil {
