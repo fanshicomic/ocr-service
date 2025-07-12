@@ -58,7 +58,7 @@ func (p *ScreenshotImageProcessor) ProcessImage(imagePath string) (map[string]st
 		return nil, fmt.Errorf("error setting language: %v", err)
 	}
 
-	client.SetWhitelist("誓约回能增伤加速暴生命攻击防御虚弱1234567890.% |")
+	client.SetWhitelist("誓约回能增伤加速暴生命攻击防御虚弱套装效果1234567890.% |\n")
 	// 避免离谱的哲约增伤
 	client.SetBlacklist("哲")
 	client.SetPageSegMode(gosseract.PSM_SPARSE_TEXT_OSD)
@@ -94,6 +94,10 @@ func (p *ScreenshotImageProcessor) ProcessImage(imagePath string) (map[string]st
 	for i := 0; i < len(words)-1; i++ {
 		// 清理一下识别出的词，有时候会带上奇怪的符号
 		cleanWord := strings.Trim(words[i], " ·-:")
+		if cleanWord == "套装效果" {
+			// 后面都是垃圾信息
+			break
+		}
 		if strings.Contains(cleanWord, "约增伤") {
 			cleanWord = "誓约增伤"
 		}
